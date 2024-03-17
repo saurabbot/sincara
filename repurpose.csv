@@ -1,0 +1,11 @@
+id,name,description,price,quantity
+1,Product A,"Lorem ipsum dolor sit amet, consectetur adipiscing elit.",10.99,100
+2,Product B,"Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",15.49,75
+3,Product C,"Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",20.99,50
+4,Product D,"Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",30.99,25
+5,Product E,"Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",25.99,150
+6,Product F,"Lorem ipsum dolor sit amet, consectetur adipiscing elit.",18.99,80
+7,Product G,"Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",22.49,65
+8,Product H,"Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",28.99,40
+9,Product I,"Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",35.99,20
+10,Product J,"Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",30.99,100
