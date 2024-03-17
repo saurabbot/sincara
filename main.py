@@ -11,7 +11,6 @@ from typing import List, Optional
 from schemas.company import GetCompanySchema
 from utils.pincone_utils import create_new_pinecone_index
 
-
 app = FastAPI()
 
 client = AsyncIOMotorClient(os.getenv("MONGO_URL"))
