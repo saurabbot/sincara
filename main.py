@@ -4,8 +4,15 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from langchain_pinecone import PineconeVectorStore
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import OpenAIEmbeddings
+from langchain.chat_models.openai import ChatOpenAI
+from langchain.chains import RetrievalQAWithSourcesChain
 from pydantic import BaseModel
+from langchain.chains.question_answering import load_qa_chain
 import uuid, os, openai, tiktoken
+from langchain.vectorstores.pinecone import Pinecone as pinecone
+
+from pinecone import Pinecone, PodSpec, Config
+
 
 from typing import List, Optional
 from schemas.company import GetCompanySchema
@@ -22,6 +29,11 @@ class Company(BaseModel):
     _id: str
     name: str
     domain: str
+
+
+@app.get("/")
+async def read_root():
+    return {"Hello": "World"}
 
 
 @app.post("/companies/", response_model=Company)
@@ -87,10 +99,45 @@ async def upload_csv(company_uuid: str, file: UploadFile = File(...)):
     print(f"You have split your document into {len(texts)} smaller documents")
     print("Creating embeddings and index...")
     embeddings = OpenAIEmbeddings(client="")
+    for i, doc in enumerate(texts):
+        doc.metadata["source"] = f"document_{i+1}"
     docsearch = PineconeVectorStore.from_texts(
         [t.page_content for t in texts],
         embeddings,
         index_name=company["pinecone_index"],
+        metadatas=[t.metadata for t in texts],
     )
     print("Done!")
     return {"message": "Upload done!"}
+
+
+@app.post("/companies/{company_uuid}/query/")
+async def query_context(company_uuid: str, query: str):
+    company = await collection.find_one({"uuid": company_uuid})
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    print("Querying...")
+    print(company["pinecone_index"])
+
+    embeddings = OpenAIEmbeddings(
+        openai_api_key=os.getenv("OPENAI_API_KEY"), model=EMBEDDING_MODEL
+    )
+    pc = Pinecone(
+        api_key=os.getenv("PINECONE_API_KEY"), environment=os.getenv("PINECONE_ENV")
+    )
+    index = pc.Index(company["pinecone_index"])
+    docsearch = PineconeVectorStore.from_existing_index(
+        index_name="pc-repurpose", embedding=embeddings
+    )
+
+    qa = RetrievalQAWithSourcesChain.from_chain_type(
+        llm=ChatOpenAI(temperature=0, model_name=FAST_CHAT_MODEL),
+        chain_type="stuff",
+        retriever=docsearch.as_retriever(),
+    )
+
+    result = qa({"question": query})
+
+    return {"result": result}
+
