@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile, Request
 from langchain_community.document_loaders.csv_loader import CSVLoader
 from motor.motor_asyncio import AsyncIOMotorClient
 from langchain_pinecone import PineconeVectorStore
@@ -8,10 +8,11 @@ from langchain.chat_models.openai import ChatOpenAI
 from langchain.chains import RetrievalQAWithSourcesChain
 from pydantic import BaseModel
 from langchain.chains.question_answering import load_qa_chain
-import uuid, os, openai, tiktoken
+import uuid, os, openai, tiktoken, sys
 from langchain.vectorstores.pinecone import Pinecone as pinecone
-
+from pyngrok import ngrok
 from pinecone import Pinecone, PodSpec, Config
+from twilio.rest import Client
 
 
 from typing import List, Optional
@@ -19,6 +20,12 @@ from schemas.company import GetCompanySchema
 from utils.pincone_utils import create_new_pinecone_index
 
 app = FastAPI()
+
+
+port = sys.argv[sys.argv.index("--port") + 1] if "--port" in sys.argv else "8000"
+public_url = ngrok.connect(port).public_url
+print(f'ngrok tunnel "{public_url}" -> "http://127.0.0.1:{port}")')
+
 
 client = AsyncIOMotorClient(os.getenv("MONGO_URL"))
 database = client["convoai"]
@@ -104,7 +111,7 @@ async def upload_csv(company_uuid: str, file: UploadFile = File(...)):
     docsearch = PineconeVectorStore.from_texts(
         [t.page_content for t in texts],
         embeddings,
-        index_name=company["pinecone_index"],
+        index_name="convo-ai",  # company["pinecone_index"],
         metadatas=[t.metadata for t in texts],
     )
     print("Done!")
@@ -112,11 +119,12 @@ async def upload_csv(company_uuid: str, file: UploadFile = File(...)):
 
 
 @app.post("/companies/{company_uuid}/query/")
-async def query_context(company_uuid: str, query: str):
+async def query_context(company_uuid: str, request: Request):
     company = await collection.find_one({"uuid": company_uuid})
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
+    query = (await request.form())["Body"].lower()
     print("Querying...")
     print(company["pinecone_index"])
 
@@ -126,9 +134,9 @@ async def query_context(company_uuid: str, query: str):
     pc = Pinecone(
         api_key=os.getenv("PINECONE_API_KEY"), environment=os.getenv("PINECONE_ENV")
     )
-    index = pc.Index(company["pinecone_index"])
+    index = pc.Index("convo-ai")  # company["pinecone_index"])
     docsearch = PineconeVectorStore.from_existing_index(
-        index_name="pc-repurpose", embedding=embeddings
+        index_name="convo-ai", embedding=embeddings  # company["pinecone_index"]
     )
 
     qa = RetrievalQAWithSourcesChain.from_chain_type(
@@ -138,6 +146,14 @@ async def query_context(company_uuid: str, query: str):
     )
 
     result = qa({"question": query})
-
-    return {"result": result}
-
+    if result is not None:
+        account_sid = os.getenv("TWILLIO_ACCOUNT_SID")
+        auth_token = os.getenv("TWILLIO_AUTH_TOKEN")
+        client = Client(account_sid, auth_token)
+        message = client.messages.create(
+            to="whatsapp:+919972502038",
+            from_="whatsapp:+14155238886",
+            body=result["answer"],
+        )
+        print(message.sid)
+    return str(result["answer"])
