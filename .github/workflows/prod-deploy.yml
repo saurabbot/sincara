@@ -1,0 +1,41 @@
+name: Deploy to EC2
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
+
+      - name: Deploy to EC2
+        env:
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+          KEY: ${{ secrets.EC2_PRIVATE_KEY }}
+          MONGODB_CONNECTION_STRING: ${{ secrets.MONGODB_CONNECTION_STRING }}
+        run: |
+          # Install dependencies
+          pip install -r requirements.txt
+
+          # Copy files to EC2 instance
+          scp -o StrictHostKeyChecking=no -r . $USER@$HOST:/
+
+          # Run the FastAPI app
+          ssh -o StrictHostKeyChecking=no $USER@$HOST "/start_app.sh"
+
+      - name: Test deployment
+        run: |
+          # Send a test request to the deployed app
+          curl http://${{ secrets.EC2_PUBLIC_IP }}
