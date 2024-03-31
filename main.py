@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from langchain.chains.question_answering import load_qa_chain
 import uuid, os, openai, tiktoken, sys
 from langchain.vectorstores.pinecone import Pinecone as pinecone
-from pyngrok import ngrok
+# from pyngrok import ngrok
 from pinecone import Pinecone, PodSpec, Config
 from twilio.rest import Client
 
@@ -22,9 +22,9 @@ from utils.pincone_utils import create_new_pinecone_index
 app = FastAPI()
 
 
-port = sys.argv[sys.argv.index("--port") + 1] if "--port" in sys.argv else "8000"
-public_url = ngrok.connect(port).public_url
-print(f'ngrok tunnel "{public_url}" -> "http://127.0.0.1:{port}")')
+# port = sys.argv[sys.argv.index("--port") + 1] if "--port" in sys.argv else "8000"
+# public_url = ngrok.connect(port).public_url
+# print(f'ngrok tunnel "{public_url}" -> "http://127.0.0.1:{port}")')
 
 
 client = AsyncIOMotorClient(os.getenv("MONGO_URL"))
