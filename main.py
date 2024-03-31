@@ -124,7 +124,10 @@ async def query_context(company_uuid: str, request: Request):
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    query = (await request.form())["Body"].lower()
+    data = await request.form()
+    incoming_number = data.get("From", "").split(":")[1]  # e.g., "+1234567890"
+    print(f"Received message from {incoming_number}")
+    query = data.get("Body", "").lower()
     print("Querying...")
     print(company["pinecone_index"])
 
@@ -151,7 +154,7 @@ async def query_context(company_uuid: str, request: Request):
         auth_token = os.getenv("TWILLIO_AUTH_TOKEN")
         client = Client(account_sid, auth_token)
         message = client.messages.create(
-            to="whatsapp:+919972502038",
+            to=f"whatsapp:{incoming_number}",
             from_="whatsapp:+14155238886",
             body=result["answer"],
         )
