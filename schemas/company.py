@@ -7,3 +7,8 @@ class GetCompanySchema(BaseModel):
     pinecone_index: str
     _id: str
     uuid: str
+
+class Company(BaseModel):
+    _id: str
+    name: str
+    domain: str
