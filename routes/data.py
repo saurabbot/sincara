@@ -86,11 +86,15 @@ async def query_context(company_uuid: str, request: Request):
         }
     )
     messages_list = []
+    messages_list.append(
+        "System: Your a chatbot for a company called backstreet Academy and your name is suresh, Your job is to answer questions from customers related to products and services."
+    )
     async for message in messages:
         if message.get("sender_id") == incoming_number:
             messages_list.append(f"Human: {message.get('message')}")
         else:
-            messages_list.append(f"AI: {message.get('message')}")
+            print(message, "AI")
+            messages_list.append(f"System: {message.get('message')}")
     full_query = "\n".join(messages_list) + f"\nHuman: {query}"
     print(full_query)
     embeddings = OpenAIEmbeddings(
@@ -103,7 +107,7 @@ async def query_context(company_uuid: str, request: Request):
     docsearch = PineconeVectorStore.from_existing_index(
         index_name="convo-ai", embedding=embeddings  # company["pinecone_index"]
     )
-
+    print(docsearch.as_retriever())
     qa = RetrievalQAWithSourcesChain.from_chain_type(
         llm=ChatOpenAI(temperature=0, model_name=FAST_CHAT_MODEL),
         chain_type="stuff",
