@@ -7,11 +7,11 @@ from langchain_community.embeddings import OpenAIEmbeddings
 from pinecone import Pinecone, Config
 from langchain.chains import RetrievalQAWithSourcesChain
 from twilio.rest import Client
+from datetime import datetime, timedelta
 from langchain.chat_models.openai import ChatOpenAI
 from db import database
 
 router = APIRouter()
-collection = database["companies"]
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
@@ -22,6 +22,7 @@ EMBEDDING_MODEL = "text-embedding-ada-002"
 
 @router.post("/{company_uuid}/upload/")
 async def upload_csv(company_uuid: str, file: UploadFile = File(...)):
+    collection = database["companies"]
     company = await collection.find_one({"uuid": company_uuid})
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
@@ -57,17 +58,41 @@ async def upload_csv(company_uuid: str, file: UploadFile = File(...)):
 
 @router.post("/{company_uuid}/query/")
 async def query_context(company_uuid: str, request: Request):
-    company = await collection.find_one({"uuid": company_uuid})
+    company_collection = database["companies"]
+    company = await company_collection.find_one({"uuid": company_uuid})
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
     data = await request.form()
+    customer_collection = database["customers"]
+    message_collection = database["messages"]
     incoming_number = data.get("From", "").split(":")[1]  # e.g., "+1234567890"
+    is_existing_customer = await customer_collection.find_one(
+        {"phone_number": incoming_number}
+    )
+    if not is_existing_customer:
+        await customer_collection.insert_one({"phone_number": incoming_number})
+        print(f"New customer added: {incoming_number}")
     print(f"Received message from {incoming_number}")
     query = data.get("Body", "").lower()
     print("Querying...")
     print(company["pinecone_index"])
-
+    # get all messages of the customer in the past 10 minutes
+    messages = message_collection.find(
+        {
+            "sender_id": incoming_number,
+            "receiver_id": company_uuid,
+            "sent_at": {"$gte": datetime.utcnow() - timedelta(minutes=10)},
+        }
+    )
+    messages_list = []
+    async for message in messages:
+        if message.get("sender_id") == incoming_number:
+            messages_list.append(f"Human: {message.get('message')}")
+        else:
+            messages_list.append(f"AI: {message.get('message')}")
+    full_query = "\n".join(messages_list) + f"\nHuman: {query}"
+    print(full_query)
     embeddings = OpenAIEmbeddings(
         openai_api_key=os.getenv("OPENAI_API_KEY"), model=EMBEDDING_MODEL
     )
@@ -85,7 +110,21 @@ async def query_context(company_uuid: str, request: Request):
         retriever=docsearch.as_retriever(),
     )
 
-    result = qa({"question": query})
+    result = qa({"question": full_query})
+    new_message = {
+        "sender_id": incoming_number,
+        "receiver_id": company_uuid,
+        "message": query,
+        "sent_at": datetime.utcnow(),
+    }
+    await message_collection.insert_one(new_message)
+    new_sender_message = {
+        "sender_id": company_uuid,
+        "receiver_id": incoming_number,
+        "message": result["answer"],
+        "sent_at": datetime.utcnow(),
+    }
+    await message_collection.insert_one(new_sender_message)
     if result is not None:
         account_sid = os.getenv("TWILLIO_ACCOUNT_SID")
         auth_token = os.getenv("TWILLIO_AUTH_TOKEN")
