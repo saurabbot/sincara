@@ -80,14 +80,13 @@ async def query_context(company_uuid: str, request: Request):
     # get all messages of the customer in the past 10 minutes
     messages = message_collection.find(
         {
-            "sender_id": incoming_number,
-            "receiver_id": company_uuid,
+            "$or": [{"sender_id": incoming_number}, {"sender_id": company_uuid}],
             "sent_at": {"$gte": datetime.utcnow() - timedelta(minutes=10)},
         }
     )
     messages_list = []
     messages_list.append(
-        "System: Your a chatbot for a company called backstreet Academy and your name is suresh, Your job is to answer questions from customers related to products and services."
+        "System: Your a chatbot for a company called backstreet Academy and your name is suresh, Your job is to answer questions from customers related to products and services.If you are unable to answer a question, you should ask the customer for more information."
     )
     async for message in messages:
         if message.get("sender_id") == incoming_number:
